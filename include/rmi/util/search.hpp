@@ -56,7 +56,66 @@ struct ModelBiasedLinearSearch {
     }
 };
 
+struct LinearSearch_SIMD {
 
+    template<typename InputIt, typename T>
+    InputIt operator()(InputIt first, InputIt last, InputIt /* pred */, const T &value) {
+        const T* data = &(*first); // iterator를 배열로 넣음
+        __m512i values = _mm512_set1_epi32(value);
+        size_t n = std::distance(first, last);
+        const size_t step = 8;
+        for (size_t i = 0; i < n; i+=step){
+            __m512i vec = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(&data[i]));
+            __mmask8 cmp_mask = _mm512_cmplt_epi64_mask(vec, values);
+            if (cmp_mask != 0) {
+                // Find the index of the first element satisfying the condition
+                size_t index = __builtin_ctz(cmp_mask);
+                return first + i + index;
+            }
+        }
+        return last;
+    }
+};
+
+struct ModelBiasedLinearSearch_SIMD {
+
+    template<typename InputIt, typename T>
+    InputIt operator()(InputIt first, InputIt last, InputIt pred, const T &value) {
+        InputIt runner = pred;
+        //오른쪽 탐색
+        if(*runner < value){
+            const T* data = &(*runner); // iterator를 배열로 넣음
+            __m512i values = _mm512_set1_epi32(value);
+            size_t n = std::distance(runner, last);
+            const size_t step = 8;
+            for (size_t i = 0; i < n; i+=step){
+                __m512i vec = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(&data[i]));
+                __mmask8 cmp_mask = _mm512_cmplt_epi64_mask(vec, values);
+                if (cmp_mask != 0) {
+                    // Find the index of the first element satisfying the condition
+                    size_t index = __builtin_ctz(cmp_mask);
+                    return first + i + index;
+                }
+            }
+        return last;
+        } else{
+            const T* data = &(*first); // iterator를 배열로 넣음
+            __m512i values = _mm512_set1_epi32(value);
+            size_t n = std::distance(first, runner);
+            const size_t step = 8;
+            for (size_t i = 0; i < n; i+=step){
+                __m512i vec = _mm512_loadu_si512(reinterpret_cast<const __m512i*>(&data[i]));
+                __mmask8 cmp_mask = _mm512_cmplt_epi64_mask(vec, values);
+                if (cmp_mask != 0) {
+                    // Find the index of the first element satisfying the condition
+                    size_t index = __builtin_ctz(cmp_mask);
+                    return first + i + index;
+                }
+            }
+            return last;
+        }
+    }
+};
 /**
  * Functor for performing binary search.
  */
