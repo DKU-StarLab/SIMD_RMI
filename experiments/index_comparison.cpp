@@ -100,7 +100,7 @@ void benchmark_rmi(const std::vector<key_type> &keys,
         auto n_models = (budget - 2 * sizeof(double) - 2 * sizeof(std::size_t)) / (2 * sizeof(double));
 
         // Build RMI.
-        rmi::Rmi<key_type, layer1_type, layer2_type> test_rmi(keys, n_models);
+        rmi::Rmi<key_type, layer1_type, layer2_type> test_rmi(keys, n_models, 8);
 
         // Evaluate RMI error.
         auto n_keys = keys.size();
@@ -125,7 +125,7 @@ void benchmark_rmi(const std::vector<key_type> &keys,
                 \
                 /* Build time. */ \
                 auto start = steady_clock::now(); \
-                RMI_TYPE<key_type, layer1_type, layer2_type> rmi(keys, N_MODELS); \
+                RMI_TYPE<key_type, layer1_type, layer2_type> rmi(keys, N_MODELS, 8); \
                 auto stop = steady_clock::now(); \
                 auto build_time = duration_cast<nanoseconds>(stop - start).count(); \
                 \

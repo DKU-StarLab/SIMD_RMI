@@ -27,12 +27,13 @@ void experiment(const std::vector<key_type> &keys,
                 const std::string dataset_name,
                 const std::string layer1,
                 const std::string layer2,
-                const std::string bound_type)
+                const std::string bound_type,
+                const std::size_t switch_n)
 {
     using rmi_type = Rmi;
 
     // Build RMI.
-    rmi_type rmi(keys, n_models);
+    rmi_type rmi(keys, n_models, switch_n);
 
     // Initialize variables.
     auto n_keys = keys.size();
@@ -56,6 +57,7 @@ void experiment(const std::vector<key_type> &keys,
               << layer1 << ','
               << layer2 << ','
               << n_models << ','
+              << switch_n << ','
               << bound_type << ','
               << rmi.size_in_bytes() << ','
                  // Interval sizes
@@ -75,7 +77,8 @@ typedef void (*exp_fn_ptr)(const std::vector<key_type>&,
                            const std::string,
                            const std::string,
                            const std::string,
-                           const std::string);
+                           const std::string,
+                           const std::size_t);
 
 /**
  * RMI configuration that holds the string representation of model types of layer 1 and layer 2 and the error bound
@@ -105,14 +108,15 @@ struct ConfigCompare {
     { {#L1, #L2, "gind"}, &experiment<key_type, rmi::RmiGInd<key_type, T1, T2>> },
 
 static std::map<Config, exp_fn_ptr, ConfigCompare> exp_map {
-    ENTRIES(linear_regression, linear_regression, rmi::LinearRegression, rmi::LinearRegression)
-    ENTRIES(linear_regression, linear_spline,     rmi::LinearRegression, rmi::LinearSpline)
-    ENTRIES(linear_spline,     linear_regression, rmi::LinearSpline,     rmi::LinearRegression)
-    ENTRIES(linear_spline,     linear_spline,     rmi::LinearSpline,     rmi::LinearSpline)
-    ENTRIES(cubic_spline,      linear_regression, rmi::CubicSpline,      rmi::LinearRegression)
-    ENTRIES(cubic_spline,      linear_spline,     rmi::CubicSpline,      rmi::LinearSpline)
-    ENTRIES(radix,             linear_regression, rmi::Radix<key_type>,  rmi::LinearRegression)
-    ENTRIES(radix,             linear_spline,     rmi::Radix<key_type>,  rmi::LinearSpline)
+    //ENTRIES(linear_regression, linear_regression, rmi::LinearRegression, rmi::LinearRegression)
+    //ENTRIES(linear_regression, linear_spline,     rmi::LinearRegression, rmi::LinearSpline)
+    ENTRIES(linear_spline,     linear_regression_welford, rmi::LinearSpline,     rmi::LinearRegression_welford)
+    ENTRIES(linear_spline, linear_regression_welford_float, rmi::LinearSpline,     rmi::LinearRegression_float)
+    //ENTRIES(linear_spline,     linear_spline,     rmi::LinearSpline,     rmi::LinearSpline)
+    // ENTRIES(cubic_spline,      linear_regression, rmi::CubicSpline,      rmi::LinearRegression)
+    // ENTRIES(cubic_spline,      linear_spline,     rmi::CubicSpline,      rmi::LinearSpline)
+    // ENTRIES(radix,             linear_regression, rmi::Radix<key_type>,  rmi::LinearRegression)
+    // ENTRIES(radix,             linear_spline,     rmi::Radix<key_type>,  rmi::LinearSpline)
 }; ///< Map that assigns an experiment function pointer to RMI configurations.
 #undef ENTRIES
 
@@ -145,6 +149,10 @@ int main(int argc, char *argv[])
     program.add_argument("bound_type")
         .help("type of error bounds used, either labs, lind, gabs, or gind.");
 
+    program.add_argument("switch_n")
+        .help("number of keys that switch SIMD/SISD.")
+        .action([](const std::string &s) { return std::stoul(s); });
+
     program.add_argument("--header")
         .help("output csv header")
         .default_value(false)
@@ -166,6 +174,7 @@ int main(int argc, char *argv[])
     const auto layer2 = program.get<std::string>("layer2");
     const auto n_models = program.get<std::size_t>("n_models");
     const auto bound_type = program.get<std::string>("bound_type");
+    const auto switch_n = program.get<std::size_t>("switch_n");
 
     // Load keys.
     auto keys = load_data<key_type>(filename);
@@ -195,7 +204,7 @@ int main(int argc, char *argv[])
                   << std::endl;
 
     // Run experiment.
-    (*exp_fn)(keys, n_models, dataset_name, layer1, layer2, bound_type);
+    (*exp_fn)(keys, n_models, dataset_name, layer1, layer2, bound_type, switch_n);
 
     exit(EXIT_SUCCESS);
 }

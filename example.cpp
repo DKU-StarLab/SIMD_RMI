@@ -24,7 +24,7 @@ int main()
     using layer1_type = rmi::LinearSpline;
     using layer2_type = rmi::LinearRegression;
     std::size_t layer2_size = 2UL << 16;
-    rmi::RmiLAbs<key_type, layer1_type, layer2_type> rmi(keys, layer2_size);
+    rmi::RmiLAbs<key_type, layer1_type, layer2_type> rmi(keys, layer2_size, 8);
 
     // Pick a key.
     std::uniform_int_distribution<std::size_t> uniform_distrib(0, n_keys - 1);

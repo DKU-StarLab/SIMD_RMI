@@ -22,12 +22,13 @@ void experiment(const std::vector<key_type> &keys,
                 const std::size_t n_models,
                 const std::string dataset_name,
                 const std::string layer1,
-                const std::string layer2)
+                const std::string layer2,
+                const std::size_t switch_n)
 {
     using rmi_type = Rmi;
 
     // Build RMI.
-    rmi_type rmi(keys, n_models);
+    rmi_type rmi(keys, n_models, switch_n);
 
     // Initialize variables.
     auto n_keys = keys.size();
@@ -53,17 +54,19 @@ void experiment(const std::vector<key_type> &keys,
     // Report results.
                  // Dataset
     std::cout << dataset_name << ','
-              << n_keys << ','
-                 // RMI config
-              << layer1 << ','
-              << layer2 << ','
-              << n_models << ','
-                 // Absolute error
-              << mean(absolute_errors) << ','
-              << median(absolute_errors) << ','
-              << stdev(absolute_errors) << ','
-              << min(absolute_errors) << ','
-              << max(absolute_errors) << std::endl;
+            << n_keys << ','
+               // RMI config
+            << layer1 << ','
+            << layer2 << ','
+            << n_models << ','
+            << rmi.size_in_bytes() << ','
+            << switch_n << ','
+               // Absolute error
+            << std::fixed << std::setprecision(7) << mean(absolute_errors) << ','
+            << std::fixed << std::setprecision(0) << median(absolute_errors) << ','
+            << std::fixed << std::setprecision(0) << stdev(absolute_errors) << ','
+            << std::fixed << std::setprecision(0) << min(absolute_errors) << ','
+            << std::fixed << std::setprecision(0) << max(absolute_errors) << std::endl;
 }
 
 
@@ -71,23 +74,26 @@ void experiment(const std::vector<key_type> &keys,
  * @brief experiment function pointer
  */
 typedef void (*exp_fn_ptr)(const std::vector<key_type>&,
-                           const std::size_t,
-                           const std::string,
-                           const std::string,
-                           const std::string);
+                        const std::size_t,
+                        const std::string,
+                        const std::string,
+                        const std::string,
+                        const std::size_t);
 
 #define ENTRY(L1, L2, T1, T2) \
     { std::make_pair(#L1, #L2), &experiment<key_type, rmi::Rmi<key_type, T1, T2>> }
 
 static std::map<std::pair<std::string, std::string>, exp_fn_ptr> exp_map {
-    ENTRY(linear_regression, linear_regression, rmi::LinearRegression, rmi::LinearRegression),
-    ENTRY(linear_regression, linear_spline,     rmi::LinearRegression, rmi::LinearSpline),
-    ENTRY(linear_spline,     linear_regression, rmi::LinearSpline,     rmi::LinearRegression),
-    ENTRY(linear_spline,     linear_spline,     rmi::LinearSpline,     rmi::LinearSpline),
-    ENTRY(cubic_spline,      linear_regression, rmi::CubicSpline,      rmi::LinearRegression),
-    ENTRY(cubic_spline,      linear_spline,     rmi::CubicSpline,      rmi::LinearSpline),
-    ENTRY(radix,             linear_regression, rmi::Radix<key_type>,  rmi::LinearRegression),
-    ENTRY(radix,             linear_spline,     rmi::Radix<key_type>,  rmi::LinearSpline),
+    // ENTRY(linear_regression, linear_regression, rmi::LinearRegression, rmi::LinearRegression),
+    // ENTRY(linear_regression, linear_spline,     rmi::LinearRegression, rmi::LinearSpline),
+    // ENTRY(linear_spline,     linear_regression, rmi::LinearSpline,     rmi::LinearRegression),
+    // ENTRY(linear_spline,     linear_spline,     rmi::LinearSpline,     rmi::LinearSpline),
+    // ENTRY(cubic_spline,      linear_regression, rmi::CubicSpline,      rmi::LinearRegression),
+    // ENTRY(cubic_spline,      linear_spline,     rmi::CubicSpline,      rmi::LinearSpline),
+    // ENTRY(radix,             linear_regression, rmi::Radix<key_type>,  rmi::LinearRegression),
+    // ENTRY(radix,             linear_spline,     rmi::Radix<key_type>,  rmi::LinearSpline),
+    ENTRY(linear_spline, linear_regression_welford, rmi::LinearSpline, rmi::LinearRegression_welford),
+    ENTRY(linear_spline, linear_regression_welford_float, rmi::LinearSpline, rmi::LinearRegression_float)
 }; ///< Map that assigns an experiment function pointer to RMI configurations.
 #undef ENTRY
 
@@ -115,6 +121,10 @@ int main(int argc, char *argv[])
     program.add_argument("n_models")
         .help("number of models on layer2, power of two is recommended.")
         .action([](const std::string &s) { return std::stoul(s); });
+    
+    program.add_argument("switch_n")
+        .help("number of keys that switch SIMD/SISD.")
+        .action([](const std::string &s) { return std::stoul(s); });
 
     program.add_argument("--header")
         .help("output csv header")
@@ -136,6 +146,7 @@ int main(int argc, char *argv[])
     const auto layer1 = program.get<std::string>("layer1");
     const auto layer2 = program.get<std::string>("layer2");
     const auto n_models = program.get<std::size_t>("n_models");
+    const auto switch_n = program.get<std::size_t>("switch_n");
 
     // Load keys.
     auto keys = load_data<key_type>(filename);
@@ -151,19 +162,21 @@ int main(int argc, char *argv[])
     // Output header.
     if (program["--header"]  == true)
         std::cout << "dataset,"
-                  << "n_keys,"
-                  << "layer1,"
-                  << "layer2,"
-                  << "n_models,"
-                  << "mean_ae,"
-                  << "median_ae,"
-                  << "stdev_ae"
-                  << "min_ae"
-                  << "max_ae"
-                  << std::endl;
+                << "n_keys,"
+                << "layer1,"
+                << "layer2,"
+                << "n_models,"
+                << "switch_n"
+                << "size_in_byte"
+                << "mean_ae,"
+                << "median_ae,"
+                << "stdev_ae"
+                << "min_ae"
+                << "max_ae"
+                << std::endl;
 
     // Run experiment.
-    (*exp_fn)(keys, n_models, dataset_name, layer1, layer2);
+    (*exp_fn)(keys, n_models, dataset_name, layer1, layer2, switch_n);
 
     exit(EXIT_SUCCESS);
 }
