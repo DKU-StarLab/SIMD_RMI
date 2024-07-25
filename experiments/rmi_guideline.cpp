@@ -42,13 +42,14 @@ void experiment(const std::vector<key_type> &keys,
                 const std::string bounds,
                 const std::string search,
                 const std::size_t budget,
-                const bool is_guideline)
+                const bool is_guideline,
+                const std::size_t switch_n)
 {
     using rmi_type = Rmi;
     auto search_fn = Search();
 
     // Build RMI.
-    rmi_type rmi(keys, n_models);
+    rmi_type rmi(keys, n_models, switch_n);
 
     // Skip configurations that are guaranteed to not be the fastest.
     if (search == "model_biased_linear") {
@@ -181,14 +182,15 @@ struct ConfigCompare {
     { {#L1, #L2, "gind", "model_biased_exponential"}, &experiment<key_type, rmi::RmiGInd<key_type, LT1, LT2>, ModelBiasedExponentialSearch> }, \
 
 static std::map<Config, exp_fn_ptr, ConfigCompare> exp_map {
-    ENTRIES(linear_regression, linear_regression, rmi::LinearRegression, rmi::LinearRegression)
-    ENTRIES(linear_regression, linear_spline,     rmi::LinearRegression, rmi::LinearSpline)
-    ENTRIES(linear_spline,     linear_regression, rmi::LinearSpline,     rmi::LinearRegression)
-    ENTRIES(linear_spline,     linear_spline,     rmi::LinearSpline,     rmi::LinearSpline)
-    ENTRIES(cubic_spline,      linear_regression, rmi::CubicSpline,      rmi::LinearRegression)
-    ENTRIES(cubic_spline,      linear_spline,     rmi::CubicSpline,      rmi::LinearSpline)
-    ENTRIES(radix,             linear_regression, rmi::Radix<key_type>,  rmi::LinearRegression)
-    ENTRIES(radix,             linear_spline,     rmi::Radix<key_type>,  rmi::LinearSpline)
+   // ENTRIES(linear_regression, linear_regression, rmi::LinearRegression, rmi::LinearRegression)
+    //ENTRIES(linear_regression, linear_spline,     rmi::LinearRegression, rmi::LinearSpline)
+    //ENTRIES(linear_spline,     linear_regression_welford, rmi::LinearSpline,     rmi::LinearRegression_welford)
+    //ENTRIES(linear_spline, linear_regression_welford_float, rmi::LinearSpline,     rmi::LinearRegression_float)
+    //ENTRIES(linear_spline,     linear_spline,     rmi::LinearSpline,     rmi::LinearSpline)
+    // ENTRIES(cubic_spline,      linear_regression, rmi::CubicSpline,      rmi::LinearRegression)
+    // ENTRIES(cubic_spline,      linear_spline,     rmi::CubicSpline,      rmi::LinearSpline)
+    // ENTRIES(radix,             linear_regression, rmi::Radix<key_type>,  rmi::LinearRegression)
+    // ENTRIES(radix,             linear_spline,     rmi::Radix<key_type>,  rmi::LinearSpline)
 }; ///< Map that assigns an experiment function pointer to RMI configurations.
 #undef ENTRIES
 
@@ -211,7 +213,7 @@ void evaluate_guideline(const std::vector<key_type> &keys,
     auto n_models = (budget - 2 * sizeof(double) - 2 * sizeof(std::size_t)) / (2 * sizeof(double));
 
     // Train RMI.
-    rmi::Rmi<key_type, rmi::LinearSpline, rmi::LinearRegression> rmi(keys, n_models);
+    rmi::Rmi<key_type, rmi::LinearSpline, rmi::LinearRegression> rmi(keys, n_models, 16);
 
     // Evaluate RMI error.
     auto n_keys = keys.size();
